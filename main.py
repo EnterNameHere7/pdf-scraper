@@ -31,7 +31,6 @@ dictConfig({
 })
 
 app = flask.Flask("scraper")
-app.logger.addHandler(logging.StreamHandler(sys.stdout))
 
 # load configs from .env file
 config = dotenv_values(".env")
@@ -44,11 +43,9 @@ controller = ScrapeController(redis_service, config)
 # initialise subscriber redis
 subscriber = ScrapeSubscriber(RedisConstants.CHANNEL_UNVISITED.value, redis.Redis(host=config.get("REDIS_HOST"), db=0), controller)
 
-subscriber.start_subscriber()
-
 # for i in range(5):
-#     x = threading.Thread(target=subscriber.start_subscriber, args=())
-#     x.start()
+x = threading.Thread(target=subscriber.start_subscriber, args=())
+x.start()
 
 
 Router(app, controller)
