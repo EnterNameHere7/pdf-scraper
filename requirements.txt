@@ -1,2 +1,10 @@
-Flask==2.0.1
-redis==3.5.3
+Flask==2.3.2
+async-timeout==4.0.2
+beautifulsoup4==4.12.2
+certifi==2023.5.7
+charset-normalizer==3.2.0
+idna==3.4
+redis==4.6.0
+requests==2.31.0
+soupsieve==2.4.1
+urllib3==2.0.3
