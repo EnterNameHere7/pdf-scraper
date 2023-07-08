@@ -13,3 +13,12 @@ class RedisService:
 
     def get_value(self, key: str):
         return self.redis_client.get(key)
+
+    def add_set(self, key: str, value: str) -> int:
+        return self.redis_client.sadd(key, value)
+
+    def rem_set(self, key: str, value: str) -> int:
+        return self.redis_client.srem(key, value)
+
+    def exists(self, key: str, value: str) -> bool:
+        return self.redis_client.sismember(key, value)

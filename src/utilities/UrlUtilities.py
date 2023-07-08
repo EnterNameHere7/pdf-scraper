@@ -1,6 +1,6 @@
-
 class UrlUtilities:
 
+    @staticmethod
     def fix_url(previous_url: str, url: str, domain: str):
         if domain not in url:
             # this means it's trying to use relative paths lets fix them

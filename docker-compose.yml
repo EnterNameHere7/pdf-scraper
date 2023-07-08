@@ -1,0 +1,25 @@
+version: '3'
+
+services:
+  web:
+    build: .
+    ports:
+      - "8000:5000"
+    volumes:
+      - .:/code
+    environment:
+      FLASK_DEBUG: "true"
+      SCRAPER_LEVEL_LIMIT: 5
+      SCRAPER_DOMAIN: "http://www.saflii.org"
+      SCRAPER_URL: "http://www.saflii.org/content/databases"
+      REDIS_HOST: "redis"
+  redis:
+    image: "redis:alpine"
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+
+volumes:
+  redis-data:
+    driver: local
