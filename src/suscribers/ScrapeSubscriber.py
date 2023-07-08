@@ -1,3 +1,4 @@
+import logging
 from logging import Logger
 
 import jsonpickle
@@ -10,11 +11,10 @@ from src.controller.ScrapeController import ScrapeController
 class ScrapeSubscriber:
 
     def __init__(self,
-                 logger: Logger,
                  channel: str,
                  redis: Redis,
                  scrape_controller: ScrapeController) -> None:
-        self.logger = logger
+        self.logger = logging.getLogger("scraper")
         self.redis = redis
         self.channel = channel
         self.scrape_controller = scrape_controller

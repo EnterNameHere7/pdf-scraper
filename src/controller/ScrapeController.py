@@ -1,3 +1,5 @@
+import logging
+
 import jsonpickle
 from logging import Logger
 from typing import Dict, Optional
@@ -15,11 +17,10 @@ from src.utilities.UrlUtilities import UrlUtilities
 class ScrapeController:
 
     def __init__(self,
-                 logger: Logger,
                  redis_service: RedisService,
                  config: Dict[str, Optional[str]]
                  ) -> None:
-        self.logger = logger
+        self.logger = logging.getLogger("scraper")
         self.redis_service = redis_service
         self.config = config
 
