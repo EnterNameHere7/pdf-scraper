@@ -1,4 +1,5 @@
 import logging
+import threading
 
 import jsonpickle
 from logging import Logger
@@ -29,7 +30,7 @@ class ScrapeController:
         self.scrape_page(0, self.config.get("SCRAPER_URL"), self.config.get("SCRAPER_URL"),
                          self.config.get("SCRAPER_DOMAIN"))
 
-    def scrape_page(self, num: int, previous_url: str, url: str, domain: str):
+    def scrape_page(self, num: int, previous_url: str, incommingUrl: str, domain: str):
         try:
 
             if num >= int(self.config.get("SCRAPER_LEVEL_LIMIT")):
@@ -37,15 +38,15 @@ class ScrapeController:
             else:
                 num = num + 1
 
+            url = UrlUtilities.fix_url(previous_url, incommingUrl, domain)
+
             if self.redis_service.exists(key=RedisConstants.KEY_VISITED.value, value=url):
                 return
-
-            time.sleep(0.5)
-            url = UrlUtilities.fix_url(previous_url, url, domain)
-            self.redis_service.add_set(key=RedisConstants.KEY_VISITED.value, value=url)
+            else:
+                self.redis_service.add_set(key=RedisConstants.KEY_VISITED.value, value=url)
 
             if num != 1:
-                self.logger.info("{} working with : {} coming from {}".format(num, url, previous_url))
+                self.logger.info("{} working with : [ {} | {} ] coming from {}".format(num, incommingUrl, url, previous_url))
 
             read = requests.get(url)
             html_content = read.content
@@ -70,11 +71,19 @@ class ScrapeController:
 
                 # print("{} ============> {}".format(url, href))
                 if ".pdf" in href:
-                    fixed_anchor = UrlUtilities.fix_url(previous_url, href, domain)
-                    self.logger.info("{} adding : {} ".format(num, fixed_anchor))
-                    PdfService.download_pdf(fixed_anchor)
+                    if not self.redis_service.exists(key=RedisConstants.KEY_PDF_DONE.value, value=href):
+                        self.redis_service.add_set(key=RedisConstants.KEY_PDF_DONE.value, value=href)
+
+                        fixed_anchor = UrlUtilities.fix_url(previous_url, href, domain)
+                        self.logger.info("{} adding : {} ".format(num, fixed_anchor))
+                        #PdfService.download_pdf(fixed_anchor)
+                        x = threading.Thread(target=PdfService.download_pdf, args=(fixed_anchor,))
+                        x.start()
                 elif "mailto" in href:
                     # this is an email not interested in this atm
+                    continue
+                elif "tel:" in href:
+                    # this is a telephone number not interested in this atm
                     continue
                 else:
                     fixed_anchor = UrlUtilities.fix_url(previous_url, href, domain)
@@ -82,11 +91,12 @@ class ScrapeController:
                         self.redis_service.publish(channel=RedisConstants.CHANNEL_UNVISITED.value,
                                                    message=jsonpickle.encode(RedisMessage(num, previous_url, href, domain)))
 
+
                 # else:
                 #     print("{} {} not supported".format(num, href))
         except Exception as e:
             self.logger.info("{} something went wrong".format(num))
-            self.logger.error(e)
+            # self.logger.error(e)
         finally:
             self.logger.debug("done with {}".format(self.config.get("SCRAPER_URL")))
 

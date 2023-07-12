@@ -40,7 +40,7 @@ class ScrapeSubscriber:
             redis_message = jsonpickle.decode(message)
             self.logger.debug("subscriber IN {}".format(message))
             self.scrape_controller.scrape_page(num=redis_message.num, previous_url=redis_message.previous_url,
-                                               url=redis_message.url, domain=redis_message.domain)
+                                               incommingUrl=redis_message.url, domain=redis_message.domain)
 
             self.redis.sadd(RedisConstants.KEY_DONE.value, redis_message.url)
         except Exception as e:

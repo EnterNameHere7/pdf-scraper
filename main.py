@@ -41,20 +41,18 @@ redis_service = RedisService(redis.Redis(host=config.get("REDIS_HOST"), db=0))
 controller = ScrapeController(redis_service, config)
 
 # initialise subscriber redis
-subscriber = ScrapeSubscriber(RedisConstants.CHANNEL_UNVISITED.value, redis.Redis(host=config.get("REDIS_HOST"), db=0), controller)
+subscriber = ScrapeSubscriber(RedisConstants.CHANNEL_UNVISITED.value, redis.Redis(host=config.get("REDIS_HOST"), db=0),
+                              controller)
 
 # for i in range(5):
 x = threading.Thread(target=subscriber.start_subscriber, args=())
 x.start()
-
 
 Router(app, controller)
 
 app.run()
 
 
-
 @app.teardown_appcontext
 def shutdownhandler(app):
     redis_service.rem_key(key=RedisConstants.KEY_VISITED.value)
-
