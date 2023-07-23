@@ -1,33 +1,58 @@
 import logging
 import sys
+import threading
 
 import flask
 import redis
 from dotenv import dotenv_values
 
+from src.constants.RedisConstants import RedisConstants
 from src.controller.ScrapeController import ScrapeController
 from src.router.router import Router
 from src.services.RedisService import RedisService
+from src.suscribers.ScrapeSubscriber import ScrapeSubscriber
 
-logging.basicConfig(filename="scraper.log",
-                    filemode='a',
-                    format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
-                    datefmt='%H:%M:%S',
-                    level=logging.DEBUG)
+from logging.config import dictConfig
 
-app = flask.Flask(__name__)
-app.logger.addHandler(logging.StreamHandler(sys.stdout))
+dictConfig({
+    'version': 1,
+    'formatters': {'default': {
+        'format': '[%(asctime)s] %(levelname)s in %(module)s: %(message)s',
+    }},
+    'handlers': {'wsgi': {
+        'class': 'logging.StreamHandler',
+        'stream': 'ext://flask.logging.wsgi_errors_stream',
+        'formatter': 'default'
+    }},
+    'root': {
+        'level': 'INFO',
+        'handlers': ['wsgi']
+    }
+})
+
+app = flask.Flask("scraper")
 
 # load configs from .env file
 config = dotenv_values(".env")
 
-# initialise redis
-r = redis.Redis(host=config.get("REDIS_HOST"), db=0)
-redis_service = RedisService(r)
+# initialise publisher redis
+redis_service = RedisService(redis.Redis(host=config.get("REDIS_HOST"), db=0))
 
-controller = ScrapeController(app.logger, redis_service, config)
+controller = ScrapeController(redis_service, config)
+
+# initialise subscriber redis
+subscriber = ScrapeSubscriber(RedisConstants.CHANNEL_UNVISITED.value, redis.Redis(host=config.get("REDIS_HOST"), db=0),
+                              controller)
+
+# for i in range(5):
+x = threading.Thread(target=subscriber.start_subscriber, args=())
+x.start()
 
 Router(app, controller)
 
 app.run()
 
+
+@app.teardown_appcontext
+def shutdownhandler(app):
+    redis_service.rem_key(key=RedisConstants.KEY_VISITED.value)

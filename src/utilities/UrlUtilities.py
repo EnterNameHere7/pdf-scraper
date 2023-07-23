@@ -6,25 +6,38 @@ class UrlUtilities:
             # this means it's trying to use relative paths lets fix them
 
             if url.startswith("../"):
-                if previous_url.endswith("/"):
-                    previous_url = previous_url[:-1]
+                if previous_url.rstrip("/") == domain.rstrip("/"):
+                    url = previous_url.rstrip("/") + "/" + url.replace("../", "")
+                else:
+                    if previous_url.endswith("/"):
+                        previous_url = previous_url[:-1]
 
-                url = previous_url[:previous_url.rfind('/')] + "/" + url.replace("../", "")
+                    url = previous_url[:previous_url.rfind('/')] + "/" + url.replace("../", "")
+
+            elif url.startswith("./"):
+                if not previous_url.endswith("/"):
+                    previous_url = previous_url + "/"
+                url = previous_url + url.replace("./", "")
+
             elif url.startswith("/"):
                 url = domain + url
+
             elif url.startswith("#"):
                 raise ValueError("Url can't start with a #")
+
             elif "/" not in url:
-                if ".html" in previous_url:
+                if ".html" in previous_url or ".php" in previous_url:
                     url = previous_url[:previous_url.rfind('/')] + "/" + url
                 else:
                     url = previous_url.rstrip("/") + "/" + url
+
             else:
                 if not url.startswith("http"):
-                    if ".html" in previous_url:
+                    if ".html" in previous_url or ".php" in previous_url:
                         url = previous_url[:previous_url.rfind('/')] + "/" + url
                     else:
                         url = previous_url.rstrip("/") + "/" + url
                 else:
                     url = previous_url + url
+
         return url

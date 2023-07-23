@@ -1,10 +1,15 @@
+import logging
 import threading
+
+import jsonpickle
 from logging import Logger
 from typing import Dict, Optional
 import time
 import requests
 from bs4 import BeautifulSoup
 
+from src.constants.RedisConstants import RedisConstants
+from src.model.RedisMessage import RedisMessage
 from src.services.PdfService import PdfService
 from src.services.RedisService import RedisService
 from src.utilities.UrlUtilities import UrlUtilities
@@ -13,24 +18,19 @@ from src.utilities.UrlUtilities import UrlUtilities
 class ScrapeController:
 
     def __init__(self,
-                 logger: Logger,
                  redis_service: RedisService,
                  config: Dict[str, Optional[str]]
                  ) -> None:
-        self.logger = logger
+        self.logger = logging.getLogger("scraper")
         self.redis_service = redis_service
         self.config = config
 
     def start_scraping(self):
-
-        print("here")
-        print(self.config.get("SCRAPER_URL"))
-
         self.logger.info("starting with : {}".format(self.config.get("SCRAPER_URL")))
         self.scrape_page(0, self.config.get("SCRAPER_URL"), self.config.get("SCRAPER_URL"),
                          self.config.get("SCRAPER_DOMAIN"))
 
-    def scrape_page(self, num: int, previous_url: str, url: str, domain: str):
+    def scrape_page(self, num: int, previous_url: str, incommingUrl: str, domain: str):
         try:
 
             if num >= int(self.config.get("SCRAPER_LEVEL_LIMIT")):
@@ -38,17 +38,15 @@ class ScrapeController:
             else:
                 num = num + 1
 
-            self.logger.info(self.redis_service.exists(key="URL:VISITED", value=url))
+            url = UrlUtilities.fix_url(previous_url, incommingUrl, domain)
 
-            if self.redis_service.exists(key="URL:VISITED", value=url):
+            if self.redis_service.exists(key=RedisConstants.KEY_VISITED.value, value=url):
                 return
-
-            time.sleep(0.5)
-            url = UrlUtilities.fix_url(previous_url, url, domain)
-            self.redis_service.add_set(key="URL:VISITED", value=url)
+            else:
+                self.redis_service.add_set(key=RedisConstants.KEY_VISITED.value, value=url)
 
             if num != 1:
-                self.logger.info("{} working with : {} coming from {}".format(num, url, previous_url))
+                self.logger.info("{} working with : [ {} | {} ] coming from {}".format(num, incommingUrl, url, previous_url))
 
             read = requests.get(url)
             html_content = read.content
@@ -59,7 +57,7 @@ class ScrapeController:
             for a in anchor_list:
                 href = a.get('href')
 
-                print("{} {}".format(anchor_list.index(a), href))
+                # print("{} {}".format(anchor_list.index(a), href))
 
                 if href is None:
                     continue
@@ -73,21 +71,32 @@ class ScrapeController:
 
                 # print("{} ============> {}".format(url, href))
                 if ".pdf" in href:
-                    fixed_anchor = UrlUtilities.fix_url(previous_url, href, domain)
-                    self.logger.info("{} adding : {} ".format(num, fixed_anchor))
-                    PdfService.download_pdf(fixed_anchor)
+                    if not self.redis_service.exists(key=RedisConstants.KEY_PDF_DONE.value, value=href):
+                        self.redis_service.add_set(key=RedisConstants.KEY_PDF_DONE.value, value=href)
+
+                        fixed_anchor = UrlUtilities.fix_url(previous_url, href, domain)
+                        self.logger.info("{} adding : {} ".format(num, fixed_anchor))
+                        #PdfService.download_pdf(fixed_anchor)
+                        x = threading.Thread(target=PdfService.download_pdf, args=(fixed_anchor,))
+                        x.start()
                 elif "mailto" in href:
                     # this is an email not interested in this atm
                     continue
+                elif "tel:" in href:
+                    # this is a telephone number not interested in this atm
+                    continue
                 else:
-                    if not self.redis_service.exists(key="URL:VISITED", value=url):
-                        # scrape_page(num, url, href, domain)
-                        x = threading.Thread(target=self.scrape_page, args=(num, url, href, domain))
-                        x.start()
-                        # x.join()
+                    fixed_anchor = UrlUtilities.fix_url(previous_url, href, domain)
+                    if not self.redis_service.exists(key=RedisConstants.KEY_VISITED.value, value=fixed_anchor):
+                        self.redis_service.publish(channel=RedisConstants.CHANNEL_UNVISITED.value,
+                                                   message=jsonpickle.encode(RedisMessage(num, previous_url, href, domain)))
+
 
                 # else:
                 #     print("{} {} not supported".format(num, href))
         except Exception as e:
             self.logger.info("{} something went wrong".format(num))
-            self.logger.error(e)
+            # self.logger.error(e)
+        finally:
+            self.logger.debug("done with {}".format(self.config.get("SCRAPER_URL")))
+

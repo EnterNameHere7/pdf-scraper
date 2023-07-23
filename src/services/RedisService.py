@@ -8,6 +8,12 @@ class RedisService:
                  ) -> None:
         self.redis_client = redis_client
 
+    def publish(self, channel: str, message: str):
+        self.redis_client.publish(channel, message)
+
+    def rem_key(self, key: str):
+        self.redis_client.delete(key)
+
     def set_key_value(self, key: str, value: str):
         self.redis_client.setex(key, 5000, value)
 
